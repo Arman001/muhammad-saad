@@ -10,6 +10,8 @@ import { errorHandler, notFoundHandler } from './shared/http/error-handler.js';
 import { attachRequestId, requestLogger } from './shared/http/request-logger.js';
 import { requestTimeout } from './shared/http/request-timeout.js';
 import { securityHeaders } from './shared/http/security-headers.js';
+import type { SubscriptionService } from './modules/subscriptions/domain/services/subscription-service.js';
+import { createSubscriptionRouter } from './modules/subscriptions/routes.js';
 
 /** Everything the app needs from the outside world. Built in the composition root. */
 export interface AppDependencies {
@@ -17,6 +19,7 @@ export interface AppDependencies {
   readonly tokenVerifier: TokenVerifier;
   readonly identityStore: IdentityStore;
   readonly nonceStore: NonceStore;
+  readonly subscriptionService: SubscriptionService;
 }
 
 export function createApp(deps: AppDependencies) {
@@ -54,6 +57,7 @@ export function createApp(deps: AppDependencies) {
 
   // 5. Routes
   app.use('/auth', createAuthRouter());
+  app.use('/subscriptions', createSubscriptionRouter(deps.subscriptionService));
 
   // 6. Unknown routes (only reachable when authenticated) and error formatting.
   app.use(notFoundHandler);

@@ -39,6 +39,10 @@ export function authenticate(options: AuthenticateOptions): RequestHandler {
     }
     const match = header.length <= MAX_AUTH_HEADER_LENGTH ? BEARER_PATTERN.exec(header) : null;
     if (!match?.[1]) {
+      req.log.warn(
+        { reason: header.startsWith('Bearer ') ? 'malformed_bearer_token' : 'unsupported_scheme' },
+        'Token rejected',
+      );
       throw new UnauthorizedError('Invalid or expired access token.');
     }
 
