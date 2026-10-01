@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Tier {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UsageSource {
+  FREE
+  SUBSCRIPTION
+}
+
+model User {
+  id            String         @id @default(uuid())
+  authSub       String         @unique // "sub" claim from the auth provider
+  email         String?
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  monthlyUsage  MonthlyUsage[]
+  subscriptions Subscription[]
+  chats         ChatMessage[]
+  nonces        RequestNonce[]
+}
+
+// One row per user per calendar month. Free quota "resets" because a new
+// month means a new row, so no cron job is needed for the reset.
+model MonthlyUsage {
+  id       String @id @default(uuid())
+  userId   String
+  period   String // "YYYY-MM" in UTC
+  freeUsed Int    @default(0)
+  user     User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, period])
+}
+
+model Subscription {
+  id           String             @id @default(uuid())
+  userId       String
+  tier         Tier
+  billingCycle BillingCycle
+  maxMessages  Int? // null = unlimited (Enterprise)
+  usedMessages Int                @default(0) // resets on each renewal
+  price        Decimal            @db.Decimal(10, 2)
+  startDate    DateTime
+  endDate      DateTime
+  renewalDate  DateTime
+  autoRenew    Boolean            @default(true)
+  status       SubscriptionStatus @default(ACTIVE)
+  cancelledAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation(fields: [userId], references: [id])
+  chats        ChatMessage[]
+  payments     PaymentAttempt[]
+
+  @@index([userId, status])
+  @@index([status, renewalDate])
+}
+
+model ChatMessage {
+  id               String        @id @default(uuid())
+  userId           String
+  question         String
+  answer           String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  source           UsageSource
+  subscriptionId   String?
+  requestId        String
+  createdAt        DateTime      @default(now())
+  user             User          @relation(fields: [userId], references: [id])
+  subscription     Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model PaymentAttempt {
+  id             String       @id @default(uuid())
+  subscriptionId String
+  amount         Decimal      @db.Decimal(10, 2)
+  success        Boolean
+  failureReason  String?
+  createdAt      DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+}
+
+// Replay protection: each nonce can be used once. Old rows can be pruned
+// after the timestamp window (e.g. 5 minutes) has passed.
+model RequestNonce {
+  nonce     String   @id
+  userId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
