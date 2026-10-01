@@ -30,6 +30,7 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = {
   UNSUPPORTED_MEDIA_TYPE: 415,
   RATE_LIMITED: 429,
   REQUEST_TIMEOUT: 503,
+  AI_UNAVAILABLE: 503,
 };
 
 interface BodyParserError {
