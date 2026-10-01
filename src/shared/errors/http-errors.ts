@@ -47,3 +47,10 @@ export class RequestTimeoutError extends AppError {
     super('The request took too long to process.');
   }
 }
+
+export class OriginNotAllowedError extends AppError {
+  override readonly code = 'ORIGIN_NOT_ALLOWED';
+  constructor() {
+    super('This origin is not allowed to call the API.');
+  }
+}
