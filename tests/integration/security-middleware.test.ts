@@ -1,17 +1,18 @@
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/app.js';
 import { errorHandler } from '../../src/shared/http/error-handler.js';
 import { attachRequestId, requestLogger } from '../../src/shared/http/request-logger.js';
 import { requestTimeout } from '../../src/shared/http/request-timeout.js';
+import { createTestApp } from '../support/test-app.js';
+import { TEST_HEALTH_KEY } from '../support/test-auth.js';
 
-const app = createApp();
+const { app } = createTestApp();
 const ALLOWED_ORIGIN = 'https://app.example.com';
 
 describe('security headers', () => {
   it('sets hardened headers and hides the framework', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(app).get('/health').set('X-Health-Key', TEST_HEALTH_KEY);
 
     expect(res.headers['content-security-policy']).toContain("default-src 'none'");
     expect(res.headers['x-content-type-options']).toBe('nosniff');
@@ -22,20 +23,26 @@ describe('security headers', () => {
   });
 
   it('returns a request ID on every response', async () => {
-    const res = await request(app).get('/health');
+    const res = await request(app).get('/health').set('X-Health-Key', TEST_HEALTH_KEY);
     expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
 
 describe('CORS', () => {
   it('allows a listed origin', async () => {
-    const res = await request(app).get('/health').set('Origin', ALLOWED_ORIGIN);
+    const res = await request(app)
+      .get('/health')
+      .set('X-Health-Key', TEST_HEALTH_KEY)
+      .set('Origin', ALLOWED_ORIGIN);
     expect(res.status).toBe(200);
     expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN);
   });
 
   it('rejects an unlisted origin with 403 before processing', async () => {
-    const res = await request(app).get('/health').set('Origin', 'https://evil.example.com');
+    const res = await request(app)
+      .get('/health')
+      .set('X-Health-Key', TEST_HEALTH_KEY)
+      .set('Origin', 'https://evil.example.com');
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('ORIGIN_NOT_ALLOWED');
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
@@ -105,10 +112,11 @@ describe('error responses', () => {
   it('uses the structured error shape with a request ID', async () => {
     const res = await request(app).get('/definitely-not-a-route');
 
-    expect(res.status).toBe(404);
+    // Unauthenticated callers get 401 for everything, so routes cannot be probed.
+    expect(res.status).toBe(401);
     expect(res.body).toEqual({
       error: {
-        code: 'NOT_FOUND',
+        code: 'UNAUTHORIZED',
         message: expect.any(String),
         requestId: res.headers['x-request-id'],
       },

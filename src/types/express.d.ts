@@ -1,9 +1,4 @@
-import type { Actor } from '../shared/kernel/actor.js';
-
-/** Identity of the authenticated caller, set by the auth middleware. */
-export interface AuthContext extends Actor {
-  readonly authSub: string;
-}
+import type { AuthContext } from '../shared/auth/auth-context.js';
 
 declare global {
   namespace Express {

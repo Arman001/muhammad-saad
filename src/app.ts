@@ -1,5 +1,9 @@
 import express from 'express';
-import { config as defaultConfig, type AppConfig } from './config/env.js';
+import type { AppConfig } from './config/env.js';
+import { createAuthRouter } from './shared/auth/auth-routes.js';
+import { authenticate } from './shared/auth/authenticate.js';
+import { requireHealthKey } from './shared/auth/health-key.js';
+import type { IdentityStore, NonceStore, TokenVerifier } from './shared/auth/ports.js';
 import { requireJsonContentType, jsonBodyParser } from './shared/http/content-type.js';
 import { createCorsMiddleware } from './shared/http/cors.js';
 import { errorHandler, notFoundHandler } from './shared/http/error-handler.js';
@@ -7,7 +11,16 @@ import { attachRequestId, requestLogger } from './shared/http/request-logger.js'
 import { requestTimeout } from './shared/http/request-timeout.js';
 import { securityHeaders } from './shared/http/security-headers.js';
 
-export function createApp(config: AppConfig = defaultConfig) {
+/** Everything the app needs from the outside world. Built in the composition root. */
+export interface AppDependencies {
+  readonly config: AppConfig;
+  readonly tokenVerifier: TokenVerifier;
+  readonly identityStore: IdentityStore;
+  readonly nonceStore: NonceStore;
+}
+
+export function createApp(deps: AppDependencies) {
+  const { config } = deps;
   const app = express();
   app.disable('x-powered-by');
 
@@ -22,11 +35,27 @@ export function createApp(config: AppConfig = defaultConfig) {
   app.use(requireJsonContentType);
   app.use(jsonBodyParser(config.BODY_LIMIT));
 
-  // TEMPORARY: open health check until authentication is in place.
-  app.get('/health', (_req, res) => {
+  // 3. Health check: protected by an internal key instead of a user token,
+  //    so monitoring systems can call it without logging in.
+  app.get('/health', requireHealthKey(config.HEALTH_API_KEY), (_req, res) => {
     res.json({ status: 'ok' });
   });
 
+  // 4. Authentication for everything below. Deny by default: no route after
+  //    this line can be reached without a valid token and a fresh nonce.
+  app.use(
+    authenticate({
+      verifier: deps.tokenVerifier,
+      identities: deps.identityStore,
+      nonces: deps.nonceStore,
+      replayWindowSeconds: config.NONCE_WINDOW_SECONDS,
+    }),
+  );
+
+  // 5. Routes
+  app.use('/auth', createAuthRouter());
+
+  // 6. Unknown routes (only reachable when authenticated) and error formatting.
   app.use(notFoundHandler);
   app.use(errorHandler);
 

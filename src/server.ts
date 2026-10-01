@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { config } from './config/env.js';
 import { createApp } from './app.js';
+import { buildDependencies } from './composition-root.js';
 import { prisma } from './shared/db/prisma.js';
 import { logger } from './shared/logger.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-const app = createApp();
+const app = createApp(buildDependencies());
 const server = app.listen(config.PORT, () => {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'Server listening');
 });
