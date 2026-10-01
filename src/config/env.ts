@@ -31,6 +31,19 @@ const EnvSchema = z.object({
   // Replay protection: how old a request timestamp may be, in seconds
   NONCE_WINDOW_SECONDS: z.coerce.number().int().positive().default(300),
 
+  // Number of trusted reverse proxies in front of the app (for correct client IPs).
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+
+  // Rate limits: requests per window, per IP and per authenticated user.
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  RATE_LIMIT_GLOBAL_PER_IP: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_AUTH_PER_IP: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_AUTH_PER_USER: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_CHAT_PER_IP: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_CHAT_PER_USER: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_SUBSCRIPTIONS_PER_IP: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_SUBSCRIPTIONS_PER_USER: z.coerce.number().int().positive().default(30),
+
   // Simulation settings
   MOCK_AI_LATENCY_MS: z.coerce.number().int().nonnegative().default(800),
   PAYMENT_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0.2),
