@@ -12,6 +12,7 @@ The original assignment is in [`docs/GGI-BACKEND-TEST-POSTURE.pdf`](docs/GGI-BAC
 - [Local development](#local-development)
 - [Authentication setup (Auth0)](#authentication-setup-auth0)
 - [Calling the API](#calling-the-api)
+- [Frontend integration](#frontend-integration)
 - [Architecture decisions](#architecture-decisions)
 - [Quota and concurrency design](#quota-and-concurrency-design)
 - [Subscriptions and billing](#subscriptions-and-billing)
@@ -169,6 +170,46 @@ To make yourself an admin, call the API once (users are created on first request
 pnpm admin:grant 'auth0|<your user id>'                                   # local
 docker compose exec api node dist/scripts/grant-admin.js 'auth0|<id>'      # Docker
 ```
+
+### Frontend integration
+
+A browser or mobile client integrates in four steps:
+
+1. **Allow its origin:** add it to `CORS_ORIGINS` (comma-separated). Other browser origins are rejected with 403.
+2. **Log in through Auth0:** use Auth0's SDK (for example `@auth0/auth0-spa-js` or `@auth0/auth0-react`) with Universal Login (Authorization Code with PKCE), requesting `audience: "https://chat-api"`. Email/password and Google both happen on Auth0's hosted page.
+3. **Send the three headers on every call:** a fresh timestamp and nonce per request, never reused, including on retries.
+4. **Handle the typed errors:** branch on `error.code`, not on messages.
+
+```ts
+const token = await auth0.getTokenSilently({
+  authorizationParams: { audience: 'https://chat-api' },
+});
+
+async function api(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'X-Request-Timestamp': String(Date.now()),
+      'X-Request-Nonce': crypto.randomUUID(),
+    },
+  });
+  const body = await res.json();
+  if (!res.ok) throw body.error; // { code, message, details?, requestId }
+  return body;
+}
+
+try {
+  await api('/chat/messages', { method: 'POST', body: JSON.stringify({ question }) });
+} catch (error) {
+  if (error.code === 'QUOTA_EXCEEDED') showUpgradePrompt(error.details); // free quota used, no bundle left
+  if (error.code === 'RATE_LIMITED') retryLater(); // Retry-After header is exposed via CORS
+}
+```
+
+`X-Request-Id`, `RateLimit` and `Retry-After` are exposed to browser code through CORS, so a frontend can show the request ID in error reports and respect rate limits. Client clocks must be roughly correct (within `NONCE_WINDOW_SECONDS`), since timestamps outside the window are rejected.
 
 ## Architecture decisions
 
