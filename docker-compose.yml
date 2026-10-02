@@ -15,5 +15,31 @@ services:
       interval: 5s
       retries: 10
 
+  # Applies database migrations once, then exits.
+  migrate:
+    build: .
+    command: ['node_modules/.bin/prisma', 'migrate', 'deploy']
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/chatapp
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      # Overrides for running inside Docker.
+      NODE_ENV: production
+      DATABASE_URL: postgresql://app:app@db:5432/chatapp
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
