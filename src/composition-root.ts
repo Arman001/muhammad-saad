@@ -1,4 +1,7 @@
 import type { AppDependencies } from './app.js';
+import { createMaintenanceRunner } from './jobs/maintenance-jobs.js';
+import { RenewalService } from './modules/subscriptions/domain/services/renewal-service.js';
+import { PrismaMetricsSource } from './shared/metrics/prisma-metrics-source.js';
 import { config } from './config/env.js';
 import { createJwtVerifier, createRemoteKeySet } from './shared/auth/jwt-verifier.js';
 import { PrismaIdentityStore } from './shared/auth/prisma-identity-store.js';
@@ -15,10 +18,17 @@ import { systemClock } from './shared/kernel/clock.js';
 
 /** The single place where real implementations are created and wired together. */
 export function buildDependencies(): AppDependencies {
+  return buildRuntime().app;
+}
+
+/** Everything the process needs: the app's dependencies and the background jobs. */
+export function buildRuntime() {
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
   const paymentGateway = new SimulatedPaymentGateway(config.PAYMENT_FAILURE_RATE);
+  const nonceStore = new PrismaNonceStore(prisma);
+  const renewalService = new RenewalService(subscriptionRepository, paymentGateway, systemClock);
 
-  return {
+  const app: AppDependencies = {
     config,
     tokenVerifier: createJwtVerifier({
       issuer: config.AUTH_ISSUER,
@@ -26,7 +36,7 @@ export function buildDependencies(): AppDependencies {
       getKey: createRemoteKeySet(config.AUTH_ISSUER),
     }),
     identityStore: new PrismaIdentityStore(prisma),
-    nonceStore: new PrismaNonceStore(prisma),
+    nonceStore,
     subscriptionService: new SubscriptionService(
       subscriptionRepository,
       paymentGateway,
@@ -38,5 +48,16 @@ export function buildDependencies(): AppDependencies {
       new PrismaChatMessageRepository(prisma),
       systemClock,
     ),
+    metricsSource: new PrismaMetricsSource(prisma),
   };
+
+  const runMaintenance = createMaintenanceRunner({
+    renewals: renewalService,
+    nonces: nonceStore,
+    clock: systemClock,
+    // Keep nonces twice as long as the timestamp window, then they can safely go.
+    nonceRetentionSeconds: config.NONCE_WINDOW_SECONDS * 2,
+  });
+
+  return { app, renewalService, runMaintenance };
 }

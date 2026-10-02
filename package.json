@@ -16,7 +16,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "test:db": "DATABASE_URL=${TEST_DATABASE_URL:?Set TEST_DATABASE_URL} prisma migrate deploy && vitest run tests/db"
+    "test:db": "DATABASE_URL=${TEST_DATABASE_URL:?Set TEST_DATABASE_URL} prisma migrate deploy && vitest run tests/db",
+    "admin:grant": "tsx src/scripts/grant-admin.ts",
+    "billing:run": "tsx src/scripts/run-billing.ts"
   },
   "keywords": [],
   "author": "",

@@ -48,6 +48,11 @@ const EnvSchema = z.object({
   MOCK_AI_LATENCY_MS: z.coerce.number().int().nonnegative().default(800),
   PAYMENT_FAILURE_RATE: z.coerce.number().min(0).max(1).default(0.2),
   BILLING_CRON: z.string().default('*/5 * * * *'),
+  /** Turn off scheduled jobs on additional instances so they run in one place. */
+  JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 
 export type AppConfig = z.infer<typeof EnvSchema>;

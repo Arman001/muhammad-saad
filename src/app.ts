@@ -8,6 +8,9 @@ import { requireJsonContentType, jsonBodyParser } from './shared/http/content-ty
 import { createCorsMiddleware } from './shared/http/cors.js';
 import { errorHandler, notFoundHandler } from './shared/http/error-handler.js';
 import { createRateLimiters } from './shared/http/rate-limit.js';
+import { systemClock } from './shared/kernel/clock.js';
+import type { MetricsSource } from './shared/metrics/metrics.js';
+import { createMetricsRouter } from './shared/metrics/metrics-routes.js';
 import { attachRequestId, requestLogger } from './shared/http/request-logger.js';
 import { requestTimeout } from './shared/http/request-timeout.js';
 import { securityHeaders } from './shared/http/security-headers.js';
@@ -24,6 +27,7 @@ export interface AppDependencies {
   readonly nonceStore: NonceStore;
   readonly subscriptionService: SubscriptionService;
   readonly chatService: ChatService;
+  readonly metricsSource: MetricsSource;
 }
 
 export function createApp(deps: AppDependencies) {
@@ -77,6 +81,7 @@ export function createApp(deps: AppDependencies) {
     createSubscriptionRouter(deps.subscriptionService),
   );
   app.use('/chat', limiters.perUser.chat, createChatRouter(deps.chatService));
+  app.use('/admin', createMetricsRouter(deps.metricsSource, systemClock));
 
   // 7. Unknown routes (only reachable when authenticated) and error formatting.
   app.use(notFoundHandler);
