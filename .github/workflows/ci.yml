@@ -1,9 +1,13 @@
 name: CI
 
+# Manual trigger only for now: GitHub Actions is unavailable on this account
+# because of a billing lock. To run on every change, replace with:
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   checks:

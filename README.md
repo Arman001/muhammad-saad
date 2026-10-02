@@ -2,7 +2,7 @@
 
 A production-style backend for an AI chat service with monthly free quotas and paid subscription bundles. Built with TypeScript (strict), Express, PostgreSQL and Prisma, following Domain-Driven Design and Clean Architecture, with a security-first request pipeline.
 
-Every push runs [continuous integration](.github/workflows/ci.yml): ESLint, Prettier, type-checking, unit and integration tests, the PostgreSQL concurrency tests, and a production build. Lint and formatting are enforced there, not only configured.
+A [CI workflow](.github/workflows/ci.yml) runs ESLint, Prettier, type-checking, unit and integration tests, the PostgreSQL concurrency tests against a Postgres service, and a production build. It is currently set to run on manual trigger, because GitHub Actions is unavailable on this account due to a billing lock; switching it to run on every push is a one-line change in the file. The same checks run locally with `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test` and `pnpm test:db`.
 
 The original assignment is in [`docs/GGI-BACKEND-TEST-POSTURE.pdf`](docs/GGI-BACKEND-TEST-POSTURE.pdf).
 
