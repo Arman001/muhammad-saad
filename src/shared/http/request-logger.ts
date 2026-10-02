@@ -21,7 +21,17 @@ export const requestLogger = pinoHttp({
     res.setHeader('X-Request-Id', id);
     return id;
   },
-  customProps: (req) => ({ userId: (req as Request).auth?.userId ?? null }),
+  // Added once, when the request completes (after authentication has run).
+  // customProps is not used because it also runs at request start, which
+  // produced a duplicate "userId" key.
+  customSuccessObject: (req, _res, value: object) => ({
+    ...value,
+    userId: (req as Request).auth?.userId ?? null,
+  }),
+  customErrorObject: (req, _res, _error, value: object) => ({
+    ...value,
+    userId: (req as Request).auth?.userId ?? null,
+  }),
   customLogLevel: (_req, res, err) => {
     if (err || res.statusCode >= 500) return 'error';
     if (res.statusCode >= 400) return 'warn';

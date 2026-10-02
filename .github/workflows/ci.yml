@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: chatapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app -d chatapp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://app:app@localhost:5432/chatapp_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Unit and integration tests
+        run: pnpm test
+
+      - name: PostgreSQL tests (migrations, concurrency, billing)
+        run: pnpm test:db
+
+      - name: Build
+        run: pnpm build
